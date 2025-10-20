@@ -1,8 +1,8 @@
-#SOC Homelab — Plan de segmentation, hiérarchie, outils et réseaux
+# SOC Homelab — Plan de segmentation, hiérarchie, outils et réseaux
 
-##But : Déployer un SOC homelab entièrement virtualisé sous Proxmox (installé en nested VirtualBox) avec zones segmentées, collecte de logs et scénarios de tests.
+## But : Déployer un SOC homelab entièrement virtualisé sous Proxmox (installé en nested VirtualBox) avec zones segmentées, collecte de logs et scénarios de tests.
 
-###1. Vue d'ensemble de l'architecture
+### 1. Vue d'ensemble de l'architecture
 
 L'environnement est organisé en zones distinctes, chacune isolée par son propre réseau virtuel (bridge). Les flux entre zones sont strictement contrôlés par FortiGate (périmètre) et pfSense (interne). Le SOC centralise les logs et orchestre la réponse.
 
@@ -20,7 +20,7 @@ Active Directory (LAN interne) — vmbr3 — 192.168.30.0/24
 
 Remarque : ces subnets correspondent à la topologie que tu as indiquée (SOC 192.168.11.0/24, DMZ 192.168.14.0/24, etc.).
 
-###2. Liste des machines et rôle (suggestion de priorisation)
+### 2. Liste des machines et rôle (suggestion de priorisation)
 
 FortiGate (NGFW) — VM périmètre
 
@@ -50,7 +50,7 @@ Poste client Windows (1+) — VM(s) dans AD pour scénario poste compromis
 
 Serveur Filebeat / Wazuh agents — petits conteneurs/agents répartis
 
-###3. Assignation des bridges & interfaces (Proxmox)
+### 3. Assignation des bridges & interfaces (Proxmox)
 
 vmbr0 — WAN (Network naté par VirtualBox) — connecte l'interface WAN de FortiGate
 
@@ -78,7 +78,7 @@ AD DC: eth0 -> vmbr3 (AD)
 
 Client Windows: eth0 -> vmbr3 (AD)
 
-###4. Plan d’adressage (exemples statiques)
+### 4. Plan d’adressage (exemples statiques)
 
 WAN (NAT VirtualBox): 10.0.2.0/24 (géré par VirtualBox)
 
@@ -112,7 +112,7 @@ Client Win1: 192.168.30.21
 
 Indiquer statiquement les IPs principales facilite la documentation et les règles de firewall.
 
-###5. Règles de flux et sécurité (résumé)
+### 5. Règles de flux et sécurité (résumé)
 WAN -> DMZ (via FortiGate)
 
 Par défaut: deny all
@@ -153,7 +153,7 @@ Aucune communication directe.
 
 Tous les flux sortants passent par pfSense puis FortiGate.
 
-###6. Journalisation & flux de logs (pipeline suggéré)
+### 6. Journalisation & flux de logs (pipeline suggéré)
 
 Agents Wazuh / Filebeat sur DVWA, ModSecurity, Cowrie, pfSense, Windows -> Wazuh manager (SOC)
 
@@ -163,7 +163,7 @@ Splunk (si utilisé) reçoit ses événements via forwarder (optionnel)
 
 Shuffle surveille Wazuh/ELK pour alertes et déclenche actions (API pfSense, blocklist FortiGate)
 
-###7. Scénarios de test (checklist)
+### 7. Scénarios de test (checklist)
 
 Brute force SSH (Cowrie)
 
@@ -193,7 +193,7 @@ Lancer un binaire de test (EICAR-style benign test) ou script
 
 Vérifier Sysmon event -> Wazuh -> isolation via SOAR (coupure de port ou mise en quarantaine VM)
 
-###8. Ressources VM recommandées (première itération)
+### 8. Ressources VM recommandées (première itération)
 
 FortiGate: 2 vCPU / 2 GB RAM / 10 GB
 
@@ -215,7 +215,7 @@ Win client: 2 vCPU / 4 GB RAM / 40 GB
 
 Tu peux compresser ces valeurs au début (ex : Wazuh+ELK 8-12GB) et augmenter si besoin.
 
-###9. Plan de déploiement étape par étape (suggestion)
+### 9. Plan de déploiement étape par étape (suggestion)
 
 Préparer bridges vmbr0..vmbr4 dans Proxmox
 
@@ -235,7 +235,7 @@ Déployer Shuffle et lier à Wazuh + pfSense pour automatisation
 
 Lancer scénarios de test progressifs
 
-###10. Sauvegardes, snapshots et restauration
+### 10. Sauvegardes, snapshots et restauration
 
 Prendre snapshot avant chaque étape critique (ex: configuration AD, installation ELK)
 
@@ -243,7 +243,7 @@ Exporter VM importantes (backup vzdump) régulièrement
 
 Documenter les points de restauration (journaux, dashboards, playbooks SOAR)
 
-###11. Automatisation et infra-as-code (optionnel)
+### 11. Automatisation et infra-as-code (optionnel)
 
 Ansible: déploiement des agents Wazuh, configuration de ModSecurity, déploiement DVWA
 
@@ -251,7 +251,7 @@ Terraform + Proxmox provider: créer VMs et attacher disques/network automatique
 
 Exemple rapide (Ansible role pour installer Wazuh agent) — à implémenter plus tard si souhaité.
 
-###12. Notes spécifiques à l'environnement nested (VirtualBox)
+### 12. Notes spécifiques à l'environnement nested (VirtualBox)
 
 Active la virtualisation imbriquée (nested-hw-virt) sur la VM Proxmox pour de meilleures performances.
 
@@ -259,12 +259,12 @@ Surveille la latence et l'utilisation CPU/RAM : la virtualisation imbriquée int
 
 Teste les règles réseau progressivement — VirtualBox NAT/bridged peut modifier le comportement réel des paquets.
 
-###13. Checklist rapide avant attaque test
+### 13. Checklist rapide avant attaque test
 
 
 
 
-###14. Annexes utiles (références rapides)
+### 14. Annexes utiles (références rapides)
 
 Ports Wazuh: 1514/1515 (selon config), agents -> manager
 
