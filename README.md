@@ -1,28 +1,52 @@
 # SOC Homelab — Segmentation, Hierarchy, Tools, and Networks
 
-## This Homelab is entirely based on the pratik-it SOC Homelab :
+## Source
 
-https://pratik-it.com/soc-homelab-concevoir-un-centre-operationnel-de-securite-en-environnement-virtualise/
+This Homelab is based on the Pratik-IT SOC Homelab:
+
+[https://pratik-it.com/soc-homelab-concevoir-un-centre-operationnel-de-securite-en-environnement-virtualise/](https://pratik-it.com/soc-homelab-concevoir-un-centre-operationnel-de-securite-en-environnement-virtualise/)
 
 ## Goal
 
 This lab is designed to enable simultaneous blue team and red team exercises in a realistic, segmented environment. The objective is to practice detection, response, and mitigation on the defensive side while providing realistic offensive scenarios and targets for attack simulation.
 
+## Checklist
+
+### Priority tasks (current focus)
+
+| Task                                    | Description                                                        | Status      | Notes                                                                                                         |                                         
+| --------------------------------------- | ------------------------------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------- | 
+| Validate nested virtualization          | Confirm `nested-hw-virt` is enabled and test KVM within Proxmox VM | In progress | `VBoxManage modifyvm "Proxmox" --nested-hw-virt on`; verify with `egrep -c "(vmx\|svm)" /proc/cpuinfo`and`kvm-ok`or`dmesg` logs`  |
+| Create Proxmox bridges                  | Create `vmbr0`–`vmbr4` and assign to network interfaces            | To do       | Use `/etc/network/interfaces` or Proxmox GUI; ensure VirtualBox network mode supports multiple bridges        |                                           
+| Deploy perimeter and internal firewalls | Deploy FortiGate (WAN/DMZ) and pfSense (DMZ/Intermediate/LAN)      | To do       | Configure minimal rules: deny-by-default, allow HTTP/HTTPS to DVWA and SSH to Cowrie; enable Snort on pfSense |                                              
+| Deploy SOC core and logging pipeline    | Deploy Wazuh and Elastic Stack, verify agents can forward logs     | To do       | Start with co-located Wazuh+ELK VM; verify Syslog/Filebeat/Wazuh agent ingestion                              |                                             
+
+### Completed and existing
+
+* Proxmox installed inside VirtualBox
+* Wazuh manager deployed and receiving local logs
+
+### Additional essential items
+
+* Backup strategy and snapshot schedule
+* Baseline images for quick restore
+* Access control for management interfaces (VPN/MFA)
+
+## Computer Specifications
+
+CPU: AMD Ryzen 9 5950x
+
+RAM: Corsair LPX 64 GB DDR4-3600 CL18
+
+GPU: AMD Radeon RX6950XT
+
+MOBO: MSI Tomahawk B450
+
 ## Architecture Overview
 
 The SOC Homelab is divided into isolated network zones connected through virtual bridges in Proxmox. FortiGate manages perimeter control, pfSense handles internal segmentation, and the SOC centralizes log collection and incident response.
 
-## Computer Specifications
-
-CPU : AMD Ryzen 9 5950x
-
-RAM : Corsair LPX 64 Go DDR4-3600 CL18 
-
-GPU : AMD Radeon rx6950xt
-
-MOBO : MSI Tomahawk b450
-
-### Network Zones
+## Network Zones
 
 | Zone             | Bridge | Subnet          | Description                            |
 | ---------------- | ------ | --------------- | -------------------------------------- |
