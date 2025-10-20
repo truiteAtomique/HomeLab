@@ -1,273 +1,216 @@
-# SOC Homelab — Plan de segmentation, hiérarchie, outils et réseaux
+# SOC Homelab — Segmentation, Hierarchy, Tools, and Networks
 
-## But : Déployer un SOC homelab entièrement virtualisé sous Proxmox (installé en nested VirtualBox) avec zones segmentées, collecte de logs et scénarios de tests.
+## This Homelab is entirely based on the pratik-it SOC Homelab :
 
-### 1. Vue d'ensemble de l'architecture
+https://pratik-it.com/soc-homelab-concevoir-un-centre-operationnel-de-securite-en-environnement-virtualise/
 
-L'environnement est organisé en zones distinctes, chacune isolée par son propre réseau virtuel (bridge). Les flux entre zones sont strictement contrôlés par FortiGate (périmètre) et pfSense (interne). Le SOC centralise les logs et orchestre la réponse.
+## Goal
 
-Zones principales (avec subnets proposés) :
+This lab is designed to enable simultaneous blue team and red team exercises in a realistic, segmented environment. The objective is to practice detection, response, and mitigation on the defensive side while providing realistic offensive scenarios and targets for attack simulation.
 
-WAN (Internet simulé) — vmbr0 (NAT VirtualBox)
+## Architecture Overview
 
-SOC — vmbr4 — 192.168.11.0/24
+The SOC Homelab is divided into isolated network zones connected through virtual bridges in Proxmox. FortiGate manages perimeter control, pfSense handles internal segmentation, and the SOC centralizes log collection and incident response.
 
-DMZ — vmbr1 — 192.168.14.0/24
+## Computer Specifications
 
-Intermédiaire / pfSense — vmbr2 — 192.168.20.0/24
+CPU : AMD Ryzen 9 5950x
 
-Active Directory (LAN interne) — vmbr3 — 192.168.30.0/24
+RAM : Corsair LPX 64 Go DDR4-3600 CL18 
 
-Remarque : ces subnets correspondent à la topologie que tu as indiquée (SOC 192.168.11.0/24, DMZ 192.168.14.0/24, etc.).
+GPU : AMD Radeon rx6950xt
 
-### 2. Liste des machines et rôle (suggestion de priorisation)
+MOBO : MSI Tomahawk b450
 
-FortiGate (NGFW) — VM périmètre
+### Network Zones
 
-Rôle : filtrage « deny all, allow by exception », NAT, inspection couche 7
+| Zone             | Bridge | Subnet          | Description                            |
+| ---------------- | ------ | --------------- | -------------------------------------- |
+| WAN              | vmbr0  | 10.0.2.0/24     | Simulated Internet (VirtualBox NAT)    |
+| SOC              | vmbr4  | 192.168.11.0/24 | Security Operations Center             |
+| DMZ              | vmbr1  | 192.168.14.0/24 | Exposed services and honeypots         |
+| Intermediate     | vmbr2  | 192.168.20.0/24 | Internal firewall and inspection layer |
+| Active Directory | vmbr3  | 192.168.30.0/24 | Internal domain and clients            |
 
-pfSense + Snort (IDS/IPS) — VM intermédiaire
+---
 
-Rôle : inspection interne, VPN admin, intégration SOAR
+## Machine List and Roles
 
-Wazuh (SIEM) — VM SOC (peut être co-hébergé avec ELK au départ)
+| Machine                           | Zone         | Role                                    |
+| --------------------------------- | ------------ | --------------------------------------- |
+| FortiGate (NGFW)                  | Perimeter    | Firewall, NAT, L7 filtering             |
+| pfSense + Snort                   | Intermediate | IDS/IPS, VPN, internal firewall         |
+| Wazuh                             | SOC          | SIEM, log collection                    |
+| Elastic Stack (ELK)               | SOC          | Data analytics, anomaly detection       |
+| Splunk                            | SOC          | Visualization and dashboards (optional) |
+| Shuffle                           | SOC          | SOAR and incident automation            |
+| DVWA                              | DMZ          | Vulnerable web app (attack simulation)  |
+| ModSecurity                       | DMZ          | Web Application Firewall                |
+| Cowrie                            | DMZ          | SSH honeypot                            |
+| Active Directory (Windows Server) | AD           | Authentication and GPO management       |
+| Windows Client                    | AD           | Domain user workstation                 |
 
-Elastic Stack (ELK) — VM SOC (ingestion / analytics / ML)
+---
 
-Splunk — VM SOC (optionnel/alternatif à ELK) — peut être allégé
+## Network Interfaces
 
-Shuffle (SOAR) — VM SOC (automatisation réponses)
+### Bridge Assignments
 
-DVWA (app vulnérable) — VM LXC ou container dans DMZ
+| Bridge | Purpose                |
+| ------ | ---------------------- |
+| vmbr0  | WAN (VirtualBox NAT)   |
+| vmbr1  | DMZ                    |
+| vmbr2  | Intermediate / pfSense |
+| vmbr3  | AD / LAN               |
+| vmbr4  | SOC                    |
 
-ModSecurity (WAF) — devant DVWA (reverse proxy) dans DMZ
+### Example Interface Mapping
 
-Cowrie (honeypot SSH) — VM LXC dans DMZ
+| VM             | Interface                                | Bridge |
+| -------------- | ---------------------------------------- | ------ |
+| FortiGate      | eth0 → vmbr0, eth1 → vmbr1               |        |
+| pfSense        | eth0 → vmbr1, eth1 → vmbr2, eth2 → vmbr3 |        |
+| Wazuh          | eth0 → vmbr4                             |        |
+| DVWA           | eth0 → vmbr1                             |        |
+| Cowrie         | eth0 → vmbr1                             |        |
+| AD DC          | eth0 → vmbr3                             |        |
+| Windows Client | eth0 → vmbr3                             |        |
 
-Active Directory (Windows Server) — VM dans zone AD
+---
 
-Poste client Windows (1+) — VM(s) dans AD pour scénario poste compromis
+## Static IP Plan
 
-Serveur Filebeat / Wazuh agents — petits conteneurs/agents répartis
+| Zone         | Host               | IP            |
+| ------------ | ------------------ | ------------- |
+| SOC          | Wazuh              | 192.168.11.10 |
+| SOC          | ELK                | 192.168.11.11 |
+| SOC          | Shuffle            | 192.168.11.12 |
+| DMZ          | FortiGate (DMZ IF) | 192.168.14.1  |
+| DMZ          | DVWA               | 192.168.14.10 |
+| DMZ          | ModSecurity        | 192.168.14.11 |
+| DMZ          | Cowrie             | 192.168.14.20 |
+| Intermediate | pfSense            | 192.168.20.1  |
+| AD           | Domain Controller  | 192.168.30.10 |
+| AD           | Windows Client     | 192.168.30.21 |
 
-### 3. Assignation des bridges & interfaces (Proxmox)
+---
 
-vmbr0 — WAN (Network naté par VirtualBox) — connecte l'interface WAN de FortiGate
+## Firewall and Network Rules
 
-vmbr1 — DMZ — interfaces DMZ de FortiGate, DVWA, ModSecurity, Cowrie, route vers pfSense si nécessaire
+### WAN → DMZ (FortiGate)
 
-vmbr2 — Intermédiaire / pfSense — interfaces LAN<->INTERNE de pfSense, connexion SOC pour alertes
+* Allow HTTP/HTTPS to DVWA (192.168.14.10)
+* Allow SSH to Cowrie (192.168.14.20)
+* Block all other traffic
 
-vmbr3 — AD / Internal LAN — contrôleur de domaine, postes clients
+### DMZ → SOC
 
-vmbr4 — SOC — Wazuh, ELK, Splunk, Shuffle
+* Allow Syslog (UDP/TCP 514)
+* Allow Filebeat (TCP 5044)
+* Allow Wazuh Agent → Manager (1514/1515)
 
-Exemple d’affectation d’interfaces
+### SOC → AD
 
-FortiGate: eth0 -> vmbr0 (WAN), eth1 -> vmbr1 (DMZ)
+* Allow secure log collection (Winlogbeat, Wazuh Agent)
 
-pfSense: eth0 -> vmbr1 (DMZ), eth1 -> vmbr2 (Intermédiaire), eth2 -> vmbr3 (LAN) optionnel
+### pfSense ↔ SOC
 
-Wazuh: eth0 -> vmbr4 (SOC)
+* Snort alerts → Wazuh
+* Shuffle API → pfSense (block automation)
 
-DVWA: eth0 -> vmbr1 (DMZ)
+### AD → Internet
 
-Cowrie: eth0 -> vmbr1 (DMZ)
+* No direct access (through pfSense → FortiGate only)
 
-AD DC: eth0 -> vmbr3 (AD)
+---
 
-Client Windows: eth0 -> vmbr3 (AD)
+## Log Pipeline
 
-### 4. Plan d’adressage (exemples statiques)
+1. Agents (Wazuh/Filebeat) send logs to Wazuh Manager.
+2. Wazuh forwards data to Elastic Stack (ELK).
+3. Splunk (optional) collects forwarded events.
+4. Shuffle monitors alerts and triggers automated responses.
 
-WAN (NAT VirtualBox): 10.0.2.0/24 (géré par VirtualBox)
+---
 
-SOC: 192.168.11.0/24
+## Test Scenarios
 
-Wazuh: 192.168.11.10
+| # | Scenario                      | Objective                               |
+| - | ----------------------------- | --------------------------------------- |
+| 1 | SSH Brute Force (Cowrie)      | Detect and block attacker IP            |
+| 2 | SQL Injection (DVWA)          | Detect via ModSecurity, alert via Wazuh |
+| 3 | AD Authentication Brute Force | Detect failed logins via Sysmon/Winlog  |
+| 4 | Suspicious Process on Client  | Detect new process and isolate VM       |
 
-ELK: 192.168.11.11
+---
 
-Shuffle: 192.168.11.12
+## Recommended VM Resources
 
-DMZ: 192.168.14.0/24
+| VM             | vCPU | RAM (GB) | Disk (GB) |
+| -------------- | ---- | -------- | --------- |
+| FortiGate      | 2    | 2        | 10        |
+| pfSense        | 2    | 4        | 20        |
+| Wazuh + ELK    | 4    | 16       | 200       |
+| Splunk         | 4    | 12       | 100       |
+| DVWA (LXC)     | 1    | 2        | 8         |
+| ModSecurity    | 1    | 2        | 8         |
+| Cowrie (LXC)   | 1    | 1        | 8         |
+| AD DC          | 2    | 4        | 40        |
+| Windows Client | 2    | 4        | 40        |
 
-FortiGate-DMZ if: 192.168.14.1
+---
 
-DVWA: 192.168.14.10
+## Deployment Steps
 
-ModSecurity: 192.168.14.11 (reverse proxy devant DVWA)
+1. Create bridges `vmbr0`–`vmbr4` in Proxmox.
+2. Deploy FortiGate and configure WAN/DMZ.
+3. Deploy pfSense and configure DMZ/Intermediate/LAN.
+4. Deploy SOC (Wazuh + ELK).
+5. Deploy DMZ services and agents.
+6. Deploy Active Directory and a Windows client.
+7. Verify log flow and dashboards.
+8. Deploy Shuffle and connect it to Wazuh + pfSense.
+9. Run attack simulations.
 
-Cowrie: 192.168.14.20
+---
 
-Intermédiaire / pfSense: 192.168.20.0/24
+## Backup and Snapshots
 
-pfSense: 192.168.20.1
+* Take snapshots before major changes.
+* Export key VMs regularly using `vzdump`.
+* Keep rollback points for dashboards and playbooks.
 
-AD / LAN interne: 192.168.30.0/24
+---
 
-AD DC: 192.168.30.10
+## Automation
 
-Client Win1: 192.168.30.21
+* Ansible for Wazuh agent and service deployment.
+* Terraform (Proxmox Provider) for VM provisioning.
 
-Indiquer statiquement les IPs principales facilite la documentation et les règles de firewall.
+---
 
-### 5. Règles de flux et sécurité (résumé)
-WAN -> DMZ (via FortiGate)
+## Nested Virtualization Notes
 
-Par défaut: deny all
+* Enable `nested-hw-virt` on the VirtualBox VM running Proxmox.
+* Monitor CPU and RAM usage.
+* Test network routing carefully with VirtualBox NAT and bridges.
 
-Autoriser uniquement:
+---
 
-HTTP/HTTPS -> 192.168.14.10 (DVWA) (ports 80/443)
+## Pre-Test Checklist
 
-SSH -> 192.168.14.20 (Cowrie honeypot) (port 22)
+* [ ] Wazuh Manager receives agent logs
+* [ ] Snort sends alerts to Wazuh
+* [ ] ModSecurity logs HTTP events
+* [ ] Cowrie logs SSH attempts
+* [ ] Shuffle has pfSense API access
 
-Bloquer tout le reste
+---
 
-DMZ -> SOC
+## Reference Ports
 
-Autoriser uniquement l’envoi de logs:
-
-Syslog (UDP 514 / TCP si besoin) -> Wazuh/ELK
-
-Filebeat -> ELK
-
-Agents Wazuh -> Wazuh manager (port 1514/1515 selon config)
-
-SOC -> AD
-
-Communication sortante limitée et chiffrée
-
-Autoriser: collecte Winlog (Wazuh agent), WinRM/Winlogbeat sur ports sécurisés
-
-pfSense <-> SOC
-
-Snort alerts -> Wazuh (syslog/API)
-
-SOAR (Shuffle) autorisé à émettre commandes de blocage vers pfSense API
-
-AD -> Internet
-
-Aucune communication directe.
-
-Tous les flux sortants passent par pfSense puis FortiGate.
-
-### 6. Journalisation & flux de logs (pipeline suggéré)
-
-Agents Wazuh / Filebeat sur DVWA, ModSecurity, Cowrie, pfSense, Windows -> Wazuh manager (SOC)
-
-Wazuh -> indexation dans Elastic (ELK)
-
-Splunk (si utilisé) reçoit ses événements via forwarder (optionnel)
-
-Shuffle surveille Wazuh/ELK pour alertes et déclenche actions (API pfSense, blocklist FortiGate)
-
-### 7. Scénarios de test (checklist)
-
-Brute force SSH (Cowrie)
-
-Lancer une attaque depuis WAN -> Cowrie
-
-Vérifier logs Cowrie -> Wazuh
-
-Vérifier déclenchement Shuffle -> blocage IP sur pfSense
-
-Injection SQL (DVWA)
-
-Lancer payload SQL -> DVWA
-
-Vérifier ModSecurity logging
-
-Vérifier corrélation Wazuh -> dashboard Splunk/ELK
-
-Brute force interne AD
-
-Simuler échecs répétés de connexion sur AD (poste client)
-
-Vérifier Sysmon/Winlog -> Wazuh -> détection anomalie ELK
-
-Processus suspect sur poste client
-
-Lancer un binaire de test (EICAR-style benign test) ou script
-
-Vérifier Sysmon event -> Wazuh -> isolation via SOAR (coupure de port ou mise en quarantaine VM)
-
-### 8. Ressources VM recommandées (première itération)
-
-FortiGate: 2 vCPU / 2 GB RAM / 10 GB
-
-pfSense: 2 vCPU / 2-4 GB RAM / 10-20 GB
-
-Wazuh + ELK (initial co-location): 4 vCPU / 12-16 GB RAM / 150-200 GB
-
-Splunk (si utilisé séparément): 4 vCPU / 8-12 GB RAM / 100+ GB
-
-DVWA (LXC): 1 vCPU / 1-2 GB RAM / 8-16 GB
-
-ModSecurity (reverse proxy): 1 vCPU / 1-2 GB RAM / 8-16 GB
-
-Cowrie (LXC): 1 vCPU / 1 GB RAM / 8 GB
-
-AD DC (Windows): 2 vCPU / 4 GB RAM / 40 GB
-
-Win client: 2 vCPU / 4 GB RAM / 40 GB
-
-Tu peux compresser ces valeurs au début (ex : Wazuh+ELK 8-12GB) et augmenter si besoin.
-
-### 9. Plan de déploiement étape par étape (suggestion)
-
-Préparer bridges vmbr0..vmbr4 dans Proxmox
-
-Déployer FortiGate (ou VM firewall) et configurer interfaces WAN+DMZ
-
-Déployer pfSense, configurer interfaces DMZ/Intermédiaire/LAN
-
-Déployer SOC (Wazuh + ELK co-localisés)
-
-Déployer DMZ services (Cowrie, ModSecurity, DVWA) et agents Wazuh/Filebeat
-
-Déployer Active Directory et un poste client
-
-Tester flux de logs et créer dashboards basiques
-
-Déployer Shuffle et lier à Wazuh + pfSense pour automatisation
-
-Lancer scénarios de test progressifs
-
-### 10. Sauvegardes, snapshots et restauration
-
-Prendre snapshot avant chaque étape critique (ex: configuration AD, installation ELK)
-
-Exporter VM importantes (backup vzdump) régulièrement
-
-Documenter les points de restauration (journaux, dashboards, playbooks SOAR)
-
-### 11. Automatisation et infra-as-code (optionnel)
-
-Ansible: déploiement des agents Wazuh, configuration de ModSecurity, déploiement DVWA
-
-Terraform + Proxmox provider: créer VMs et attacher disques/network automatiquement
-
-Exemple rapide (Ansible role pour installer Wazuh agent) — à implémenter plus tard si souhaité.
-
-### 12. Notes spécifiques à l'environnement nested (VirtualBox)
-
-Active la virtualisation imbriquée (nested-hw-virt) sur la VM Proxmox pour de meilleures performances.
-
-Surveille la latence et l'utilisation CPU/RAM : la virtualisation imbriquée introduit une surcharge.
-
-Teste les règles réseau progressivement — VirtualBox NAT/bridged peut modifier le comportement réel des paquets.
-
-### 13. Checklist rapide avant attaque test
-
-
-
-
-### 14. Annexes utiles (références rapides)
-
-Ports Wazuh: 1514/1515 (selon config), agents -> manager
-
-Syslog: UDP 514 / TCP 514
-
-Filebeat: port configurable (souvent 5044 pour Logstash)
+| Service  | Port        |
+| -------- | ----------- |
+| Wazuh    | 1514 / 1515 |
+| Syslog   | 514         |
+| Filebeat | 5044        |
