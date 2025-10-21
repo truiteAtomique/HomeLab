@@ -14,12 +14,12 @@ This lab is designed to enable simultaneous blue team and red team exercises in 
 
 ### Priority tasks (current focus)
 
-| Task                                    | Description                                                        | Status      | Notes                                                                                                         |                                         
-| --------------------------------------- | ------------------------------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------- | 
-| Validate nested virtualization          | Confirm `nested-hw-virt` is enabled and test KVM within Proxmox VM | In progress | `VBoxManage modifyvm "Proxmox" --nested-hw-virt on`; verify with `egrep -c "(vmx\|svm)" /proc/cpuinfo`and`kvm-ok`or`dmesg` logs`  |
-| Create Proxmox bridges                  | Create `vmbr0`–`vmbr4` and assign to network interfaces            | To do       | Use `/etc/network/interfaces` or Proxmox GUI; ensure VirtualBox network mode supports multiple bridges        |                                           
-| Deploy perimeter and internal firewalls | Deploy FortiGate (WAN/DMZ) and pfSense (DMZ/Intermediate/LAN)      | To do       | Configure minimal rules: deny-by-default, allow HTTP/HTTPS to DVWA and SSH to Cowrie; enable Snort on pfSense |                                              
-| Deploy SOC core and logging pipeline    | Deploy Wazuh and Elastic Stack, verify agents can forward logs     | To do       | Start with co-located Wazuh+ELK VM; verify Syslog/Filebeat/Wazuh agent ingestion                              |                                             
+| Task                                    | Description                                                        | Status | Notes                                                                                                                            |
+| --------------------------------------- | ------------------------------------------------------------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| Validate nested virtualization          | Confirm `nested-hw-virt` is enabled and test KVM within Proxmox VM | Done   | `VBoxManage modifyvm "Proxmox" --nested-hw-virt on`; verify with `egrep -c "(vmx\|svm)" /proc/cpuinfo`and`kvm-ok`or`dmesg` logs` |
+| Create Proxmox bridges                  | Create `vmbr0`–`vmbr4` and assign to network interfaces            | Done  | Use `/etc/network/interfaces` or Proxmox GUI; ensure VirtualBox network mode supports multiple bridges                           |
+| Deploy perimeter and internal firewalls | Deploy FortiGate (WAN/DMZ) and pfSense (DMZ/Intermediate/LAN)      | To do  | Configure minimal rules: deny-by-default, allow HTTP/HTTPS to DVWA and SSH to Cowrie; enable Snort on pfSense                    |
+| Deploy SOC core and logging pipeline    | Deploy Wazuh and Elastic Stack, verify agents can forward logs     | To do  | Start with co-located Wazuh+ELK VM; verify Syslog/Filebeat/Wazuh agent ingestion                                                 |
 
 ### Completed and existing
 
@@ -47,6 +47,8 @@ MOBO: MSI Tomahawk B450
 The SOC Homelab is divided into isolated network zones connected through virtual bridges in Proxmox. FortiGate manages perimeter control, pfSense handles internal segmentation, and the SOC centralizes log collection and incident response.
 
 ## Network Zones
+
+Each network zone represents a logical subnet. These subnets are implemented at the VM level (inside the firewalls and connected hosts), not directly on the Proxmox bridges. Bridges act as Layer 2 virtual switches, providing connectivity within each zone, while the gateways and IP addressing are configured within the virtual machines (e.g., FortiGate and pfSense).
 
 | Zone             | Bridge | Subnet          | Description                            |
 | ---------------- | ------ | --------------- | -------------------------------------- |
@@ -88,6 +90,8 @@ The SOC Homelab is divided into isolated network zones connected through virtual
 | vmbr3  | AD / LAN               |
 | vmbr4  | SOC                    |
 
+Bridges are configured without IP addresses (set as `inet manual`), except for `vmbr0` which provides the Proxmox host’s management and Internet connectivity.
+
 ### Example Interface Mapping
 
 | VM             | Interface                                | Bridge |
@@ -104,18 +108,20 @@ The SOC Homelab is divided into isolated network zones connected through virtual
 
 ## Static IP Plan
 
-| Zone         | Host               | IP            |
-| ------------ | ------------------ | ------------- |
-| SOC          | Wazuh              | 192.168.11.10 |
-| SOC          | ELK                | 192.168.11.11 |
-| SOC          | Shuffle            | 192.168.11.12 |
-| DMZ          | FortiGate (DMZ IF) | 192.168.14.1  |
-| DMZ          | DVWA               | 192.168.14.10 |
-| DMZ          | ModSecurity        | 192.168.14.11 |
-| DMZ          | Cowrie             | 192.168.14.20 |
-| Intermediate | pfSense            | 192.168.20.1  |
-| AD           | Domain Controller  | 192.168.30.10 |
-| AD           | Windows Client     | 192.168.30.21 |
+Subnets are defined at the VM level. Gateways for each subnet are configured on the firewall VMs.
+
+| Zone         | Host               | IP            | Gateway                                   |
+| ------------ | ------------------ | ------------- | ----------------------------------------- |
+| SOC          | Wazuh              | 192.168.11.10 | 192.168.11.1 (pfSense or internal router) |
+| SOC          | ELK                | 192.168.11.11 | 192.168.11.1                              |
+| SOC          | Shuffle            | 192.168.11.12 | 192.168.11.1                              |
+| DMZ          | FortiGate (DMZ IF) | 192.168.14.1  | - (gateway itself)                        |
+| DMZ          | DVWA               | 192.168.14.10 | 192.168.14.1                              |
+| DMZ          | ModSecurity        | 192.168.14.11 | 192.168.14.1                              |
+| DMZ          | Cowrie             | 192.168.14.20 | 192.168.14.1                              |
+| Intermediate | pfSense            | 192.168.20.1  | - (gateway itself)                        |
+| AD           | Domain Controller  | 192.168.30.10 | 192.168.30.1 (pfSense)                    |
+| AD           | Windows Client     | 192.168.30.21 | 192.168.30.1                              |
 
 ---
 
@@ -186,7 +192,7 @@ The SOC Homelab is divided into isolated network zones connected through virtual
 
 ## Deployment Steps
 
-1. Create bridges `vmbr0`–`vmbr4` in Proxmox.
+1. Create bridges `vmbr0`–`vmbr4` in Proxmox. Only `vmbr0` should have an IP/gateway; the others should use `inet manual`.
 2. Deploy FortiGate and configure WAN/DMZ.
 3. Deploy pfSense and configure DMZ/Intermediate/LAN.
 4. Deploy SOC (Wazuh + ELK).
