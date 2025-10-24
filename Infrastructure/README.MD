@@ -83,9 +83,9 @@ qm set 101 --vga std
   - port2 → DHCP if needed for WAN
 - Web GUI accessible at https://192.168.14.1
 
-Documentation used for the installation :
+Documentation used for the installation at https://docs.fortinet.com/document/fortigate-private-cloud/7.6.0/proxmox-administration-guide/37920/deploying-a-fortigate-vm-into-proxmox
 
-https://docs.fortinet.com/document/fortigate-private-cloud/7.6.0/proxmox-administration-guide/37920/deploying-a-fortigate-vm-into-proxmox
+
 ---
 
 ## 6. Notes and Decisions
